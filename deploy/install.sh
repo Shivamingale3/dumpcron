@@ -39,7 +39,20 @@ fi
 if [ "$installed" = false ]; then
     echo "Pre-built binary not available for this system."
 
-    if ! command -v go &>/dev/null; then
+    GOBIN=""
+    if command -v go &>/dev/null; then
+        GOBIN="go"
+    elif [[ -n "${SUDO_USER:-}" ]]; then
+        USER_HOME="$(eval echo ~$SUDO_USER)"
+        for guess in "$USER_HOME/go/bin/go" "$USER_HOME/.go/bin/go" /usr/local/go/bin/go; do
+            if [[ -x "$guess" ]]; then
+                GOBIN="$guess"
+                break
+            fi
+        done
+    fi
+
+    if [[ -z "$GOBIN" ]]; then
         echo "ERROR: Go is required to build Dumpcron from source."
         echo "Install Go: https://go.dev/doc/install"
         exit 1
@@ -50,7 +63,7 @@ if [ "$installed" = false ]; then
     echo "Building from source..."
     git clone --depth 1 "https://github.com/$REPO.git" "$TMP_DIR"
     cd "$TMP_DIR"
-    go build -ldflags="-s -w" -o "$BIN_DST" ./cmd/dumpcron
+    "$GOBIN" build -ldflags="-s -w" -o "$BIN_DST" ./cmd/dumpcron
     echo "Installed: $BIN_DST"
 fi
 
