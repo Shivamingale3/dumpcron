@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/Shivamingale3/dumpcron/internal/config"
+	"github.com/Shivamingale3/dumpcron/internal/core"
 	"github.com/Shivamingale3/dumpcron/internal/drivers"
 	"github.com/Shivamingale3/dumpcron/internal/events"
 	"github.com/Shivamingale3/dumpcron/internal/scheduler"
@@ -20,6 +21,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "usage: dumpcron <command>")
 		fmt.Fprintln(os.Stderr, "  validate  validate configuration")
 		fmt.Fprintln(os.Stderr, "  run       start the backup scheduler")
+		fmt.Fprintln(os.Stderr, "  version   print version")
 		os.Exit(1)
 	}
 
@@ -28,6 +30,8 @@ func main() {
 		cmdValidate()
 	case "run":
 		cmdRun()
+	case "version":
+		fmt.Println(core.Version)
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n", os.Args[1])
 		os.Exit(1)
