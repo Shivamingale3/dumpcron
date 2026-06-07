@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"dumpcron/internal/config"
+	"github.com/Shivamingale3/dumpcron/internal/config"
 )
 
 type PostgresDriver struct{}

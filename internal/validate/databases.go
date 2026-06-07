@@ -5,8 +5,8 @@ import (
 	"net"
 	"strconv"
 
-	"dumpcron/internal/config"
-	"dumpcron/internal/drivers"
+	"github.com/Shivamingale3/dumpcron/internal/config"
+	"github.com/Shivamingale3/dumpcron/internal/drivers"
 )
 
 func ValidateDatabases(cfg *config.Config, drvs map[string]drivers.Driver) []error {

@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"dumpcron/internal/drivers"
-	"dumpcron/internal/events"
-	"dumpcron/internal/retention"
+	"github.com/Shivamingale3/dumpcron/internal/drivers"
+	"github.com/Shivamingale3/dumpcron/internal/events"
+	"github.com/Shivamingale3/dumpcron/internal/retention"
 )
 
 type Worker struct {

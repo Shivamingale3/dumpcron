@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"dumpcron/internal/config"
+	"github.com/Shivamingale3/dumpcron/internal/config"
 )
 
 type WorkItem struct {

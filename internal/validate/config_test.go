@@ -3,7 +3,7 @@ package validate
 import (
 	"testing"
 
-	"dumpcron/internal/config"
+	"github.com/Shivamingale3/dumpcron/internal/config"
 )
 
 func TestValidateConfigValid(t *testing.T) {

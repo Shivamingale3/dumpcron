@@ -1,8 +1,8 @@
 package validate
 
 import (
-	"dumpcron/internal/config"
-	"dumpcron/internal/drivers"
+	"github.com/Shivamingale3/dumpcron/internal/config"
+	"github.com/Shivamingale3/dumpcron/internal/drivers"
 )
 
 func ValidateAll(cfg *config.Config, drvs map[string]drivers.Driver) []error {

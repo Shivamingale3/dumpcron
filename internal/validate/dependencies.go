@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os/exec"
 
-	"dumpcron/internal/config"
+	"github.com/Shivamingale3/dumpcron/internal/config"
 )
 
 func ValidateDependencies(cfg *config.Config) []error {

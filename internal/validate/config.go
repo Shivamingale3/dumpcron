@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"regexp"
 
-	"dumpcron/internal/config"
+	"github.com/Shivamingale3/dumpcron/internal/config"
 )
 
 var timeRegex = regexp.MustCompile(`^([01]?\d|2[0-3]):([0-5]\d)$`)

@@ -3,7 +3,7 @@ package drivers
 import (
 	"context"
 
-	"dumpcron/internal/config"
+	"github.com/Shivamingale3/dumpcron/internal/config"
 )
 
 type Driver interface {

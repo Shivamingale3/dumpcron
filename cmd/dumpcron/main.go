@@ -8,11 +8,11 @@ import (
 	"strings"
 	"syscall"
 
-	"dumpcron/internal/config"
-	"dumpcron/internal/drivers"
-	"dumpcron/internal/events"
-	"dumpcron/internal/scheduler"
-	"dumpcron/internal/validate"
+	"github.com/Shivamingale3/dumpcron/internal/config"
+	"github.com/Shivamingale3/dumpcron/internal/drivers"
+	"github.com/Shivamingale3/dumpcron/internal/events"
+	"github.com/Shivamingale3/dumpcron/internal/scheduler"
+	"github.com/Shivamingale3/dumpcron/internal/validate"
 )
 
 func main() {

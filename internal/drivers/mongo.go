@@ -9,7 +9,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"dumpcron/internal/config"
+	"github.com/Shivamingale3/dumpcron/internal/config"
 )
 
 type MongoDriver struct{}

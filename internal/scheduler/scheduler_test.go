@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"dumpcron/internal/config"
+	"github.com/Shivamingale3/dumpcron/internal/config"
 )
 
 func TestIsDueNoLastRunPast(t *testing.T) {
