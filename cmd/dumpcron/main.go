@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"strings"
@@ -19,9 +20,10 @@ import (
 func main() {
 	if len(os.Args) < 2 {
 		fmt.Fprintln(os.Stderr, "usage: dumpcron <command>")
-		fmt.Fprintln(os.Stderr, "  validate  validate configuration")
-		fmt.Fprintln(os.Stderr, "  run       start the backup scheduler")
-		fmt.Fprintln(os.Stderr, "  version   print version")
+		fmt.Fprintln(os.Stderr, "  validate   validate configuration")
+		fmt.Fprintln(os.Stderr, "  run        start the backup scheduler")
+		fmt.Fprintln(os.Stderr, "  version    print version")
+		fmt.Fprintln(os.Stderr, "  uninstall  remove dumpcron from system")
 		os.Exit(1)
 	}
 
@@ -32,6 +34,8 @@ func main() {
 		cmdRun()
 	case "version":
 		fmt.Println(core.Version)
+	case "uninstall":
+		cmdUninstall()
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n", os.Args[1])
 		os.Exit(1)
@@ -189,4 +193,29 @@ func stepForValidation(msg string) string {
 		return "config"
 	}
 	return "database"
+}
+
+func cmdUninstall() {
+	if os.Geteuid() != 0 {
+		fmt.Fprintln(os.Stderr, "dumpcron uninstall must be run as root (try: sudo dumpcron uninstall)")
+		os.Exit(1)
+	}
+
+	exec.Command("systemctl", "disable", "--now", "dumpcron").Run()
+
+	os.Remove("/usr/local/bin/dumpcron")
+	os.Remove("/etc/systemd/system/dumpcron.service")
+	os.Remove("/etc/pidex/custom.d/dumpcron.conf")
+	os.RemoveAll("/var/lib/dumpcron")
+
+	var answer string
+	fmt.Print("Remove /etc/dumpcron? [y/N]: ")
+	fmt.Scanln(&answer)
+	if answer == "y" || answer == "Y" {
+		os.RemoveAll("/etc/dumpcron")
+		fmt.Println("Removed /etc/dumpcron")
+	}
+
+	exec.Command("systemctl", "daemon-reload").Run()
+	fmt.Println("Dumpcron uninstalled.")
 }
