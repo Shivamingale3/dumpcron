@@ -10,8 +10,8 @@ build:
 install: build
 	install -m 755 dumpcron $(BINARY)
 	mkdir -p $(CONFIG_DIR) $(STATE_DIR)
-	cp dumpcron.conf $(PIDEX_DIR)/
-	cp dumpcron.service $(SYSTEMD_DIR)/
+	cp config/dumpcron.conf $(PIDEX_DIR)/
+	cp deploy/dumpcron.service $(SYSTEMD_DIR)/
 	systemctl daemon-reload
 
 uninstall:
