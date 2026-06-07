@@ -1,87 +1,64 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_DIR="$(dirname "$SCRIPT_DIR")"
-BIN_SRC="$REPO_DIR/dumpcron"
+REPO="Shivamingale3/dumpcron"
 BIN_DST="/usr/local/bin/dumpcron"
 CONFIG_DIR="/etc/dumpcron"
 CONFIG_FILE="$CONFIG_DIR/config.yaml"
 STATE_DIR="/var/lib/dumpcron"
-SYSTEMD_SRC="$REPO_DIR/deploy/dumpcron.service"
-SYSTEMD_DST="/etc/systemd/system/dumpcron.service"
-PIDEX_SRC="$REPO_DIR/config/dumpcron.conf"
+SERVICE_DIR="/etc/systemd/system"
 PIDEX_DIR="/etc/pidex/custom.d"
-PIDEX_DST="$PIDEX_DIR/dumpcron.conf"
 
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
+echo "=== Dumpcron Installer ==="
 
-say()   { echo -e "$*"; }
-ok()    { echo -e "${GREEN}✓${NC} $*"; }
-warn()  { echo -e "${YELLOW}⚠${NC} $*"; }
-die()   { echo -e "${RED}✗${NC} $*"; exit 1; }
+ARCH="unknown"
+case "$(uname -m)" in
+    x86_64)  ARCH="amd64" ;;
+    aarch64) ARCH="arm64" ;;
+esac
 
-say ""
-say "╔══════════════════════════════════════╗"
-say "║    Dumpcron v1 — Installer          ║"
-say "╚══════════════════════════════════════╝"
-say ""
+installed=false
 
-# ── preflight ────────────────────────────────────────────────────────────────
+echo "Finding latest release..."
+TAG=$(curl -sfL "https://api.github.com/repos/$REPO/releases/latest" \
+    | tr ',' '\n' | grep '"tag_name"' | cut -d'"' -f4)
 
-if [[ $EUID -ne 0 ]]; then
-    die "must run as root:  sudo ./install.sh"
+if [ -n "$TAG" ] && [ "$ARCH" != "unknown" ]; then
+    echo "Downloading Dumpcron $TAG (linux/$ARCH)..."
+
+    url="https://github.com/$REPO/releases/download/$TAG/dumpcron-$TAG-linux-$ARCH"
+    if curl -sfLo "$BIN_DST" "$url"; then
+        chmod 755 "$BIN_DST"
+        installed=true
+        echo "Installed: $BIN_DST"
+    else
+        echo "Download failed, falling back to build from source..."
+    fi
 fi
 
-GOBIN=""
-if command -v go &>/dev/null; then
-    GOBIN="go"
-elif [[ -n "${SUDO_USER:-}" ]]; then
-    USER_HOME="$(eval echo ~$SUDO_USER)"
-    for guess in "$USER_HOME/go/bin/go" "$USER_HOME/.go/bin/go" /usr/local/go/bin/go; do
-        if [[ -x "$guess" ]]; then
-            GOBIN="$guess"
-            break
-        fi
-    done
+if [ "$installed" = false ]; then
+    echo "Pre-built binary not available for this system."
+
+    if ! command -v go &>/dev/null; then
+        echo "ERROR: Go is required to build Dumpcron from source."
+        echo "Install Go: https://go.dev/doc/install"
+        exit 1
+    fi
+
+    TMP_DIR="$(mktemp -d)"
+    trap 'rm -rf "$TMP_DIR"' EXIT
+    echo "Building from source..."
+    git clone --depth 1 "https://github.com/$REPO.git" "$TMP_DIR"
+    cd "$TMP_DIR"
+    go build -ldflags="-s -w" -o "$BIN_DST" ./cmd/dumpcron
+    echo "Installed: $BIN_DST"
 fi
-
-if [[ -z "$GOBIN" ]] || ! "$GOBIN" version &>/dev/null; then
-    die "Go not found on PATH — install it first:  https://go.dev/dl/"
-fi
-
-if [[ ! -f "$REPO_DIR/go.mod" ]]; then
-    die "run this script from the dumpcron repository root (deploy/install.sh)"
-fi
-
-ok "preflight checks passed (go: $GOBIN)"
-
-# ── build ────────────────────────────────────────────────────────────────────
-
-say "building dumpcron ..."
-(
-    cd "$REPO_DIR"
-    "$GOBIN" build -ldflags="-s -w" -o dumpcron ./cmd/dumpcron
-)
-ok "build complete"
-
-# ── install binary ───────────────────────────────────────────────────────────
-
-install -m 755 "$BIN_SRC" "$BIN_DST"
-ok "installed $BIN_DST"
-
-# ── create directories ───────────────────────────────────────────────────────
 
 mkdir -p "$CONFIG_DIR" "$STATE_DIR"
-ok "created $CONFIG_DIR  $STATE_DIR"
-
-# ── sample config (only if none exists) ──────────────────────────────────────
+echo "Created: $CONFIG_DIR  $STATE_DIR"
 
 if [[ -f "$CONFIG_FILE" ]]; then
-    ok "config already exists at $CONFIG_FILE — leaving untouched"
+    echo "Config already exists at $CONFIG_FILE — leaving untouched"
 else
     cat > "$CONFIG_FILE" << 'YAMLEOF'
 # ┌─────────────────────────────────────────────────────┐
@@ -103,7 +80,6 @@ jobs:
   #   password: your_password
   #   databases:
   #     - app_db
-  #     - auth_db
   #   time: "02:00"
 
   # ── Example MySQL job ──────────────────────────────
@@ -128,46 +104,115 @@ jobs:
   #     - analytics
   #   time: "04:00"
 YAMLEOF
-    ok "created sample config at $CONFIG_FILE"
+    echo "Created sample config at $CONFIG_FILE"
 fi
 
-# ── systemd unit ─────────────────────────────────────────────────────────────
+cat > "$SERVICE_DIR/dumpcron.service" << SERVICE
+[Unit]
+Description=Dumpcron database backup scheduler
+After=network-online.target
+Wants=network-online.target
 
-cp "$SYSTEMD_SRC" "$SYSTEMD_DST"
+[Service]
+Type=simple
+ExecStart=$BIN_DST run
+ExecStop=/bin/kill -s TERM \$MAINPID
+Restart=on-failure
+RestartSec=30
+User=root
+
+[Install]
+WantedBy=multi-user.target
+SERVICE
+
 systemctl daemon-reload
-ok "installed systemd unit: dumpcron.service"
-
-# ── PiDex config ─────────────────────────────────────────────────────────────
+echo "Installed systemd unit: dumpcron.service"
 
 if [[ -d "$PIDEX_DIR" ]]; then
-    cp "$PIDEX_SRC" "$PIDEX_DST"
-    ok "installed PiDex config at $PIDEX_DST"
+    cat > "$PIDEX_DIR/dumpcron.conf" << 'PIDEXEOF'
+name = "dumpcron"
+description = "Dumpcron Database Backup Scheduler"
+
+[[events]]
+name = "DUMPCRON_STARTED"
+pattern = "DUMPCRON_STARTED"
+severity = "INFO"
+title = "Dumpcron Started"
+message = "Dumpcron backup scheduler is now running"
+
+[[events]]
+name = "DUMPCRON_STOPPED"
+pattern = "DUMPCRON_STOPPED"
+severity = "WARNING"
+title = "Dumpcron Stopped"
+message = "Dumpcron backup scheduler has stopped"
+
+[[events]]
+name = "DUMPCRON_CONFIG_INVALID"
+pattern = "DUMPCRON_CONFIG_INVALID"
+severity = "CRITICAL"
+title = "Dumpcron Config Error"
+message = "Configuration validation failed — check /etc/dumpcron/config.yaml"
+
+[[events]]
+name = "DUMPCRON_DEPENDENCY_MISSING"
+pattern = "DUMPCRON_DEPENDENCY_MISSING"
+severity = "CRITICAL"
+title = "Dumpcron Missing Dependency"
+message = "A required binary is not installed — install the missing tool"
+
+[[events]]
+name = "DUMPCRON_STORAGE_INVALID"
+pattern = "DUMPCRON_STORAGE_INVALID"
+severity = "CRITICAL"
+title = "Dumpcron Storage Error"
+message = "Backup storage directory is missing or not writable"
+
+[[events]]
+name = "BACKUP_JOB_STARTED"
+pattern = "BACKUP_JOB_STARTED"
+severity = "INFO"
+title = "Backup Job Started"
+message = "A scheduled backup job has started"
+
+[[events]]
+name = "BACKUP_JOB_COMPLETED"
+pattern = "BACKUP_JOB_COMPLETED"
+severity = "INFO"
+title = "Backup Job Completed"
+message = "A scheduled backup job finished successfully"
+
+[[events]]
+name = "BACKUP_JOB_FAILED"
+pattern = "BACKUP_JOB_FAILED"
+severity = "CRITICAL"
+title = "Backup Job Failed"
+message = "A backup job completed with failures — check logs"
+
+[[events]]
+name = "DATABASE_BACKUP_FAILED"
+pattern = "DATABASE_BACKUP_FAILED"
+severity = "CRITICAL"
+title = "Database Backup Failed"
+message = "A single database backup failed — other databases continue"
+PIDEXEOF
+    echo "Installed PiDex config: $PIDEX_DIR/dumpcron.conf"
 else
-    warn "PiDex directory $PIDEX_DIR not found — skipping PiDex config"
-    warn "To enable PiDex alerts, install PiDex, then run:"
-    warn "  sudo cp dumpcron.conf $PIDEX_DST"
-    warn "  sudo pidex setup  →  Manage custom services  →  dumpcron.conf"
+    echo "PiDex directory $PIDEX_DIR not found — skipping PiDex config"
 fi
 
-# ── done ─────────────────────────────────────────────────────────────────────
-
-say ""
-say "╔══════════════════════════════════════════════════════════════════╗"
-say "║  Dumpcron v1 installed                                         ║"
-say "╠══════════════════════════════════════════════════════════════════╣"
-say "║                                                                ║"
-say "║  Next steps:                                                   ║"
-say "║  1. Edit config:   vim $CONFIG_FILE              ║"
-say "║  2. Create dir:    mkdir -p /srv/backups                       ║"
-say "║  3. Validate:      dumpcron validate                           ║"
-say "║  4. Start:         systemctl start dumpcron                    ║"
-say "║  5. Enable:        systemctl enable dumpcron                   ║"
-say "║                                                                ║"
-say "║  Logs:             journalctl -u dumpcron -f                   ║"
-say "║                                                                ║"
+echo ""
+echo "=== Dumpcron installed ==="
+echo ""
+echo "Next steps:"
+echo "  1. Edit config:   nano $CONFIG_FILE"
+echo "  2. Create dir:    mkdir -p \$(grep backup_root $CONFIG_FILE | awk '{print \$2}')"
+echo "  3. Validate:      dumpcron validate"
+echo "  4. Start:         systemctl start dumpcron"
+echo "  5. Enable:        systemctl enable dumpcron"
+echo ""
+echo "Logs:  journalctl -u dumpcron -f"
 if [[ -d "$PIDEX_DIR" ]]; then
-say "║  PiDex:            sudo pidex setup → Manage custom services   ║"
-say "║                    → dumpcron.conf → Register → Restart pidex  ║"
+echo ""
+echo "PiDex: sudo pidex setup -> Manage custom services -> dumpcron.conf -> Register"
 fi
-say "╚══════════════════════════════════════════════════════════════════╝"
-say ""
